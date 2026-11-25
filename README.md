@@ -63,13 +63,12 @@ import stalwart "github.com/nforge101/stalwart-go"
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [docs/architecture.md](docs/architecture.md) | System context and dependency direction |
-| [docs/implementation-progress.md](docs/implementation-progress.md) | Milestone/slice progress |
-| [STALWART_GO_PROJECT_SPEC.md](STALWART_GO_PROJECT_SPEC.md) | Full project specification |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+| Document                                                           | Description                             |
+| ------------------------------------------------------------------ | --------------------------------------- |
+| [docs/architecture.md](docs/architecture.md)                       | System context and dependency direction |
+| [docs/implementation-progress.md](docs/implementation-progress.md) | Milestone/slice progress                |                                      |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                 | How to contribute                       |
+| [SECURITY.md](SECURITY.md)                                         | Vulnerability reporting                 |
 
 ## Contributing
 

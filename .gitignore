@@ -51,3 +51,6 @@ docker-compose.override.yml
 # OS
 .DS_Store
 Thumbs.db
+
+# Internal project brief (kept local, not part of the public repo)
+STALWART_GO_PROJECT_SPEC.md
