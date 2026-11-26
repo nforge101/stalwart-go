@@ -4,13 +4,15 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Current milestone
 
-**M1 — SDK foundation + developer experience**
+**M2 — Stalwart API validation and compatibility baseline**
 
 ## Active slice
 
-**M1-S4 — Example, CI, and docs** (`feat/example-ci-docs`, implemented, awaiting review and commit)
+**M2 — Read-only API validation** (`feat/stalwart-api-validation`, implemented, awaiting review and commit)
 
-Scope: a runnable example that builds a client from environment variables without making a network call, CI that builds the examples and runs the race detector on Linux, and documentation for testing, development, and compatibility. No management operations and no exported request methods.
+Scope: validate a read-only management call against a real, pinned Stalwart server, record sanitized evidence, add opt-in integration tests, and start the compatibility matrix. No exported management operations and no write operations.
+
+M1 (SDK foundation) is complete.
 
 ## Completed slices
 
@@ -19,6 +21,7 @@ Scope: a runnable example that builds a client from environment variables withou
 | M1-S1 — OSS bootstrap | Squash-merged into `main` via PR #1 (`3830c5a`) | Pre-release status, `.gitignore` hardening, `SECURITY.md`, `CONTRIBUTING.md`, CI on Go 1.26.x and 1.27.x, issue templates, package doc |
 | M1-S2 — SDK client foundation | Squash-merged into `main` via PR #2 (`6e41db7`) | `NewClient` with functional options, base URL validation, default HTTP client with timeout and no redirect following, unit tests |
 | M1-S3 — Transport, errors, and auth | Squash-merged into `main` via PR #3 (`05e580e`) | Internal request helper, typed errors (`APIError`, sentinels), Bearer API-key auth with redaction, response limits, concurrency and TLS tests |
+| M1-S4 — Example, CI, and docs | Squash-merged into `main` via PR #4 (`d9fd004`) | `examples/basic`, race detector and example build in CI, README quick start, testing/development/compatibility docs |
 
 ## Architectural decisions
 
@@ -27,15 +30,16 @@ Scope: a runnable example that builds a client from environment variables withou
 | Public package | Module root, `package stalwart`; import `github.com/nforge101/stalwart-go` |
 | Client construction | `NewClient(baseURL, opts ...Option)`; options are applied in order |
 | Base URL | Must be `https`, have a host, and contain no user information, query, or fragment. A trailing slash is removed; a path prefix is allowed. Plain `http` is rejected, so credentials are never sent unencrypted |
-| Authentication | Required: `NewClient` returns `ErrInvalidConfig` if no auth option is given. M1 supports one mechanism, `WithBearerToken`, which sends `Authorization: Bearer <token>`. Stalwart API keys (`API_...`) use this form. Basic auth is deferred until M2 validates it against a real server |
+| Authentication | Required: `NewClient` returns `ErrInvalidConfig` if no auth option is given. M1 supports one mechanism, `WithBearerToken`, which sends `Authorization: Bearer <token>`. Stalwart API keys (`API_...`) use this form and are verified against v1.0.1. Basic auth is deferred |
 | Credential handling | Token must be 1 to 512 printable ASCII characters with no spaces. It never appears in `String`/`GoString` output, error messages, or `APIError.Message`. Error bodies are redacted before they are truncated |
 | Default HTTP client | Standard TLS verification, 30 second timeout, redirects not followed (the redirect response is returned to the caller) |
 | Caller-supplied HTTP client | Used as provided and never modified; `WithTimeout` cannot be combined with `WithHTTPClient` |
 | Request paths | Relative to the base URL; must start with `/`, be printable ASCII, and contain no `?`, `#`, `\`, or `.`/`..` segments (including percent-encoded forms). Dynamic values must be escaped with `url.PathEscape` so they cannot add segments |
-| Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel |
+| Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel. Method-level JMAP errors inside an HTTP 200 are not yet surfaced; see the M3 note below |
 | Response limits | Error bodies: 4 KiB read, 512 bytes kept. Success bodies: 16 MiB decode limit. Response bodies are always closed |
 | Concurrency | `Client` is immutable after construction and safe for concurrent use |
-| Environment variables | The SDK never reads them. The example reads `STALWART_URL` and `STALWART_API_KEY`; integration-test variables are decided in M2 |
+| Environment variables | The SDK never reads them. The example reads `STALWART_URL` and `STALWART_API_KEY`. Integration tests read `STALWART_TEST_URL`, `STALWART_TEST_API_KEY`, and `STALWART_TEST_NOPERM_API_KEY`; the separate prefix keeps tests from picking up a real server's settings |
+| Integration tests | Root package, behind `//go:build integration`, read-only. They use the default HTTP client and the operating system trust store, never a disabled certificate check. Missing variables fail the test instead of skipping it |
 | Dependencies | Standard library only |
 | Go version | `go 1.26.0` minimum; CI tests 1.26 and 1.27 |
 | REST wrapper | Later milestone (M7); self-hosted by adopters; mandatory caller auth when introduced |
@@ -43,18 +47,15 @@ Scope: a runnable example that builds a client from environment variables withou
 
 ## Verified Stalwart API contracts
 
-_None yet._ Validation is Milestone 2. Do not invent management endpoints.
+Verified against `stalwartlabs/stalwart:v1.0.1` (digest in [compatibility.md](compatibility.md)) on 2026-11-26. Details and sanitized evidence are in [stalwart-api-validation.md](stalwart-api-validation.md).
 
-Documented by Stalwart (not yet verified against our instance; see the M2 validation work):
+- `GET /jmap/session` with a bearer API key returns the session. The API URL path is `/jmap/`.
+- `x:Domain/get` with `ids: null` and no `accountId` returns every domain (`accountId`, `list`, `notFound`; items have `id` and `name`).
+- The minimum permissions for that call are `authenticate` and `sysDomainGet`.
+- An unissued key gets HTTP 401; a key without the sign-in permission gets HTTP 403; a signed-in key without the method permission gets HTTP 200 with a method-level `forbidden` error.
+- The session does not advertise `urn:stalwart:jmap`, yet using it in a request works.
 
-- Management operations use JMAP under the `urn:stalwart:jmap` capability (`x:Domain/get|set|query`).
-- API keys are bearer credentials (`Authorization: Bearer API_...`). They act as their owner, are long-lived unless `expiresAt` is set, are stored hashed (shown once), and can be restricted by permissions, `allowedIps`, and expiry.
-- Management calls need the `authenticate` permission and the relevant `sys*` permissions (for example `sysDomainGet`).
-
-Known open risks from the earlier POC (unverified for this SDK):
-
-- The POC returned `404` for `/api` and `/api/principal`, and `unknownMethod` for JMAP `Domain/get`. These do not show that the operations are unsupported.
-- The POC used the mutable image tag `stalwartlabs/stalwart:v1`. Integration tests must pin a version or digest.
+Not verified: write operations, `x:Domain/query`, accounts, aliases, Basic auth, and any other Stalwart version.
 
 ## Test results and limitations
 
@@ -62,28 +63,30 @@ Recorded on Windows with Go **1.27.4**:
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| `go vet ./...` | Pass | |
-| `go test -count=1 -v ./...` | Pass | 32 top-level tests, 38 subtests, 0 failures (M1-S3). M1-S4 adds example tests; see the pull request for final counts |
+| `go vet ./...` | Pass | Also passes with `-tags=integration` |
+| `go test -count=1 ./...` | Pass | Integration tests are excluded without the tag |
 | `go build ./...` | Pass | |
-| `go build ./examples/...` | Pass | |
 | `gofmt` | Pass | Checked on LF-normalized copies. The working tree uses CRLF because `core.autocrlf=true` |
-| `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Added to CI for Linux in M1-S4 |
-| Integration / Stalwart | Not run | Requires the M2 environment |
+| `go test -tags=integration` | Pass against v1.0.1 | Four tests, run manually against a local test server. Not run in CI |
+| `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Runs in CI on Linux |
 
 Test design notes:
 
 - Transport tests use `httptest.NewTLSServer`. Clients are built with `NewClient` and trust the test certificate through the server's own HTTP client (`srv.Client()`). Certificate verification stays enabled everywhere.
 - On the development machine, Norton Web/Mail Shield re-signed loopback TLS certificates, so the TLS tests initially failed verification. Verification was working correctly. After adding Norton exclusions for `https://127.0.0.1/*`, `http://127.0.0.1/*`, and `https://localhost.localdomain/*`, the loopback certificate is no longer replaced, and the TLS tests pass. Keep these exclusions in mind if the tests fail on another machine with similar security software.
 - Concurrency is exercised with 20 goroutines × 5 requests. Race detection runs in CI on Linux.
-- Windows occasionally fails to delete the temporary test binary while a scanner holds it. This affects cleanup only; the exit code of the test run itself is what matters, and the run passed.
+- Windows occasionally fails to delete the temporary test binary while a scanner holds it. This affects cleanup only; the exit code of the test run itself is what matters.
+- Integration test output records field names, counts, and statuses only, so it can be shared as evidence without revealing hosts, identifiers, or keys.
 
 ## Outstanding risks
 
-- The Stalwart management API contract is unverified on a pinned instance, and the auth scheme (API key via Bearer) is documented but not confirmed for the management endpoints.
+- Only one Stalwart version and configuration are validated. Compatibility with other versions is unknown.
+- Write operations are unvalidated. Domain create, update, and destroy need their own validation before they are exposed.
+- Integration tests run manually and are not in CI. They need a dedicated test server and credentials that CI does not have.
 - `-race` has not been run locally on Windows. It runs only in CI until a C toolchain is installed.
 - Basic auth is intentionally absent until validated.
 - Consider adding `.gitattributes` (`* text=auto eol=lf`) so Windows contributors do not see CRLF-related `gofmt` noise.
 
 ## Next planned slice
 
-**M2 — Stalwart API validation** against a pinned Stalwart version: verify the management contract (starting with `x:Domain/get`), record the results in `docs/stalwart-api-validation.md`, add a compatibility entry, and add opt-in integration tests (`-tags=integration`) that never target production.
+**M3 — Domains.** Before exposing any domain operation, add typed handling for method-level JMAP errors. A denied request returns HTTP 200 with a `forbidden` error inside `methodResponses`, so the current `doJSON` reports success for it. Then validate `x:Domain/set` (create, update, destroy) on disposable domains, behind an explicit write guard in the integration tests, and add the first exported domain operations.

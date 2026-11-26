@@ -38,12 +38,17 @@ If Git has `core.autocrlf=true`, the working tree uses CRLF line endings while t
 
 ## Environment variables
 
-The SDK itself never reads environment variables. Only the example and future integration tests do:
+The SDK itself never reads environment variables. Only the example and the integration tests do:
 
 | Variable | Used by | Purpose |
 |----------|---------|---------|
 | `STALWART_URL` | `examples/basic` | Base URL of the Stalwart server (`https://...`) |
 | `STALWART_API_KEY` | `examples/basic` | Stalwart API key (begins with `API_`) |
+| `STALWART_TEST_URL` | integration tests | Base URL of a dedicated test server |
+| `STALWART_TEST_API_KEY` | integration tests | API key that can sign in and read domains |
+| `STALWART_TEST_NOPERM_API_KEY` | integration tests | API key that can sign in but not read domains |
+
+The integration tests use a separate `STALWART_TEST_` prefix so they never pick up the settings of a real server. See [testing.md](testing.md) before running them.
 
 Keep local values in your shell or a secrets manager. Never commit them. `.env` files are git-ignored, but no loader reads them.
 

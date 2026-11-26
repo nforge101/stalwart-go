@@ -27,7 +27,7 @@ This repository is a public open-source project under the [NForge101](https://gi
 | Go module (`go.mod`) | Declared |
 | Client construction, transport, errors, bearer auth | Implemented (pre-release) |
 | Example and CI | Implemented (pre-release) |
-| Stalwart API validation | Planned (Milestone 2) |
+| Stalwart API validation | Read-only calls validated on one Stalwart version (Milestone 2) |
 | Domain / account / alias operations | Planned (after validation) |
 | Optional REST wrapper | Planned (later milestone) |
 | Tagged release | Not yet |
@@ -39,7 +39,7 @@ No management operations are available yet. See [docs/implementation-progress.md
 - Go **1.26** or later (CI tests the Go 1.26 and 1.27 toolchains)
 - A Stalwart instance for live operations and integration tests (not required to compile or unit-test the module)
 
-Supported Stalwart versions will be listed in [docs/compatibility.md](docs/compatibility.md) after real-server validation. Untested configurations are not claimed as supported.
+Validated Stalwart versions are listed in [docs/compatibility.md](docs/compatibility.md). Untested configurations are not claimed as supported.
 
 ## Installation
 
@@ -104,6 +104,7 @@ The example makes no network request and performs no management operation.
 | [docs/development.md](docs/development.md) | Local setup and checks |
 | [docs/testing.md](docs/testing.md) | Test strategy and how to run tests |
 | [docs/compatibility.md](docs/compatibility.md) | Supported Go and Stalwart versions |
+| [docs/stalwart-api-validation.md](docs/stalwart-api-validation.md) | Verified Stalwart API behavior and evidence |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 

@@ -22,13 +22,16 @@ CI runs `go vet`, `go test`, `go test -race`, and `go build` on each Go version 
 
 ## Stalwart Mail Server versions
 
-| Stalwart version | Status | Evidence |
-|------------------|--------|----------|
-| None yet | Not validated | Real-server validation is Milestone 2 |
+| Stalwart version | Image digest | Authentication | API behavior verified | Exported SDK operations | Integration tests | Date |
+|------------------|--------------|----------------|-----------------------|-------------------------|-------------------|------|
+| v1.0.1 | `sha256:b9da4df8b4efc06bc926dd6e990bdeb0ad7b9261a7c3893d74b0461a00bb389b` | Bearer API key | Session; `x:Domain/get` (read-only); 401 and 403 responses; method-level `forbidden` error | None yet | Pass (4 tests) | 2026-11-26 |
 
-No Stalwart version is supported yet. The SDK does not claim compatibility with any management endpoint until it is validated against a pinned server. When validation is complete, this table will list each version, the image or digest used, and which operations were verified.
+Only the operations in the "API behavior verified" column are validated, and only on this version. Everything else, including every write operation, is unvalidated and therefore unsupported. The SDK does not yet export any management operation; domain operations arrive in Milestone 3.
 
-## Protocol assumptions
+Versions not listed in the table are not supported. See [stalwart-api-validation.md](stalwart-api-validation.md) for the evidence and its limits.
 
-- Stalwart management operations use JMAP under the `urn:stalwart:jmap` capability. This is taken from Stalwart's documentation and is not yet verified against a server.
-- Authentication uses bearer API keys only (`Authorization: Bearer API_...`). Basic authentication is deferred until validated.
+## Protocol notes
+
+- Management operations use JMAP at `/jmap/`, with the session at `/jmap/session`. Verified on v1.0.1 for the read-only operations above.
+- Authentication uses bearer API keys only (`Authorization: Bearer API_...`). Verified on v1.0.1. Basic authentication is deferred until validated.
+- Permission denials arrive in two forms: an HTTP 403, and a method-level `forbidden` error inside an HTTP 200 response. See [stalwart-api-validation.md](stalwart-api-validation.md).
