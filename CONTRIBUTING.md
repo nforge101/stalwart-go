@@ -29,7 +29,7 @@ go test -race ./...
 go build ./...
 ```
 
-Integration tests against a real Stalwart instance (when present) are opt-in and must never target production. See upcoming `docs/testing.md`.
+Integration tests against a real Stalwart instance are opt-in (`-tags=integration`) and must never target production. See [docs/testing.md](docs/testing.md) for the setup.
 
 ## Commit messages
 
