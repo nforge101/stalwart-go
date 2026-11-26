@@ -22,6 +22,27 @@ type clientConfig struct {
 	timeout    time.Duration
 	timeoutSet bool
 	userAgent  string
+	auth       authenticator
+}
+
+// WithBearerToken authenticates every request with a bearer token. The
+// Authorization header is set to "Bearer <token>". Stalwart API keys, which
+// begin with "API_", are sent this way.
+//
+// The token must be 1 to 512 printable ASCII characters without spaces. The
+// token is never included in the Client's String output or in error messages.
+//
+// NewClient requires an authentication option. Calling WithBearerToken more
+// than once replaces the earlier token.
+func WithBearerToken(token string) Option {
+	return func(c *clientConfig) error {
+		auth, err := newBearerAuth(token)
+		if err != nil {
+			return err
+		}
+		c.auth = auth
+		return nil
+	}
 }
 
 // WithHTTPClient makes the Client send requests with hc instead of a default

@@ -8,7 +8,15 @@ import (
 	"time"
 )
 
-const testBaseURL = "https://mail.example.com"
+const (
+	testBaseURL = "https://mail.example.com"
+
+	// testToken is a placeholder. It is not a real Stalwart credential.
+	testToken = "API_test-token-not-real"
+)
+
+// testAuth is the authentication option used by tests that need a valid client.
+var testAuth = WithBearerToken(testToken)
 
 func TestNewClient_ValidBaseURL(t *testing.T) {
 	tests := []struct {
@@ -25,7 +33,7 @@ func TestNewClient_ValidBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := NewClient(tt.raw)
+			c, err := NewClient(tt.raw, testAuth)
 			if err != nil {
 				t.Fatalf("NewClient(%q) returned error: %v", tt.raw, err)
 			}
@@ -61,7 +69,7 @@ func TestNewClient_InvalidBaseURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := NewClient(tt.raw)
+			c, err := NewClient(tt.raw, testAuth)
 			if err == nil {
 				t.Fatalf("NewClient(%q) returned nil error", tt.raw)
 			}
@@ -83,7 +91,7 @@ func TestNewClient_InvalidBaseURL(t *testing.T) {
 }
 
 func TestNewClient_Defaults(t *testing.T) {
-	c, err := NewClient(testBaseURL)
+	c, err := NewClient(testBaseURL, testAuth)
 	if err != nil {
 		t.Fatalf("NewClient returned error: %v", err)
 	}
@@ -96,6 +104,9 @@ func TestNewClient_Defaults(t *testing.T) {
 	if c.userAgent != defaultUserAgent {
 		t.Errorf("user agent = %q, want %q", c.userAgent, defaultUserAgent)
 	}
+	if c.auth == nil {
+		t.Error("authenticator was not set")
+	}
 	if c.httpClient.CheckRedirect == nil {
 		t.Fatal("default HTTP client must not follow redirects automatically")
 	}
@@ -105,14 +116,14 @@ func TestNewClient_Defaults(t *testing.T) {
 }
 
 func TestNewClient_NilOption(t *testing.T) {
-	_, err := NewClient(testBaseURL, nil)
+	_, err := NewClient(testBaseURL, testAuth, nil)
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Errorf("error = %v, want ErrInvalidConfig", err)
 	}
 }
 
 func TestWithTimeout(t *testing.T) {
-	c, err := NewClient(testBaseURL, WithTimeout(5*time.Second))
+	c, err := NewClient(testBaseURL, testAuth, WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("NewClient returned error: %v", err)
 	}
@@ -121,7 +132,7 @@ func TestWithTimeout(t *testing.T) {
 	}
 
 	for _, d := range []time.Duration{0, -time.Second} {
-		if _, err := NewClient(testBaseURL, WithTimeout(d)); !errors.Is(err, ErrInvalidConfig) {
+		if _, err := NewClient(testBaseURL, testAuth, WithTimeout(d)); !errors.Is(err, ErrInvalidConfig) {
 			t.Errorf("WithTimeout(%v) error = %v, want ErrInvalidConfig", d, err)
 		}
 	}
@@ -130,7 +141,7 @@ func TestWithTimeout(t *testing.T) {
 func TestWithHTTPClient_UsesCallerClientUnmodified(t *testing.T) {
 	hc := &http.Client{Timeout: 7 * time.Second}
 
-	c, err := NewClient(testBaseURL, WithHTTPClient(hc))
+	c, err := NewClient(testBaseURL, testAuth, WithHTTPClient(hc))
 	if err != nil {
 		t.Fatalf("NewClient returned error: %v", err)
 	}
@@ -146,7 +157,7 @@ func TestWithHTTPClient_UsesCallerClientUnmodified(t *testing.T) {
 }
 
 func TestWithHTTPClient_Nil(t *testing.T) {
-	_, err := NewClient(testBaseURL, WithHTTPClient(nil))
+	_, err := NewClient(testBaseURL, testAuth, WithHTTPClient(nil))
 	if !errors.Is(err, ErrInvalidConfig) {
 		t.Errorf("error = %v, want ErrInvalidConfig", err)
 	}
@@ -156,8 +167,8 @@ func TestWithTimeout_ConflictsWithHTTPClient(t *testing.T) {
 	hc := &http.Client{}
 
 	orders := [][]Option{
-		{WithHTTPClient(hc), WithTimeout(time.Second)},
-		{WithTimeout(time.Second), WithHTTPClient(hc)},
+		{testAuth, WithHTTPClient(hc), WithTimeout(time.Second)},
+		{testAuth, WithTimeout(time.Second), WithHTTPClient(hc)},
 	}
 	for i, opts := range orders {
 		if _, err := NewClient(testBaseURL, opts...); !errors.Is(err, ErrInvalidConfig) {
@@ -167,7 +178,7 @@ func TestWithTimeout_ConflictsWithHTTPClient(t *testing.T) {
 }
 
 func TestWithUserAgent(t *testing.T) {
-	c, err := NewClient(testBaseURL, WithUserAgent("my-app/1.0"))
+	c, err := NewClient(testBaseURL, testAuth, WithUserAgent("my-app/1.0"))
 	if err != nil {
 		t.Fatalf("NewClient returned error: %v", err)
 	}
@@ -176,7 +187,7 @@ func TestWithUserAgent(t *testing.T) {
 	}
 
 	maxLen := strings.Repeat("a", maxUserAgentLen)
-	if _, err := NewClient(testBaseURL, WithUserAgent(maxLen)); err != nil {
+	if _, err := NewClient(testBaseURL, testAuth, WithUserAgent(maxLen)); err != nil {
 		t.Errorf("maximum-length user agent rejected: %v", err)
 	}
 }
@@ -196,7 +207,7 @@ func TestWithUserAgent_Invalid(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewClient(testBaseURL, WithUserAgent(tt.ua))
+			_, err := NewClient(testBaseURL, testAuth, WithUserAgent(tt.ua))
 			if !errors.Is(err, ErrInvalidConfig) {
 				t.Errorf("error = %v, want ErrInvalidConfig", err)
 			}

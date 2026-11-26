@@ -16,6 +16,7 @@ type Client struct {
 	baseURL    *url.URL
 	httpClient *http.Client
 	userAgent  string
+	auth       authenticator
 }
 
 // NewClient returns a Client for the Stalwart server at baseURL.
@@ -23,10 +24,10 @@ type Client struct {
 // baseURL must be an absolute https URL with a host, for example
 // "https://mail.example.com". It may include a path prefix when Stalwart is
 // served under a sub-path, but it must not contain user information, a query,
-// or a fragment. Supply credentials through request authentication, not
-// through the URL.
+// or a fragment. Plain http URLs are rejected so that credentials are never
+// sent unencrypted.
 //
-// Plain http URLs are rejected so that credentials are never sent unencrypted.
+// NewClient requires an authentication option, such as WithBearerToken.
 //
 // Options are applied in order. Invalid configuration returns an error that
 // wraps ErrInvalidConfig.
@@ -51,6 +52,9 @@ func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	if cfg.httpClient != nil && cfg.timeoutSet {
 		return nil, fmt.Errorf("%w: WithTimeout cannot be combined with WithHTTPClient", ErrInvalidConfig)
 	}
+	if cfg.auth == nil {
+		return nil, fmt.Errorf("%w: authentication is required; use WithBearerToken", ErrInvalidConfig)
+	}
 
 	httpClient := cfg.httpClient
 	if httpClient == nil {
@@ -61,7 +65,18 @@ func NewClient(baseURL string, opts ...Option) (*Client, error) {
 		baseURL:    u,
 		httpClient: httpClient,
 		userAgent:  cfg.userAgent,
+		auth:       cfg.auth,
 	}, nil
+}
+
+// String describes the client without revealing its credentials.
+func (c Client) String() string {
+	return fmt.Sprintf("stalwart.Client{baseURL: %s, auth: %s}", c.baseURL, redactedPlaceholder)
+}
+
+// GoString describes the client without revealing its credentials.
+func (c Client) GoString() string {
+	return c.String()
 }
 
 // newDefaultHTTPClient returns the HTTP client used when the caller does not
@@ -108,4 +123,15 @@ func parseBaseURL(raw string) (*url.URL, error) {
 	u.Path = strings.TrimRight(u.Path, "/")
 	u.RawPath = strings.TrimRight(u.RawPath, "/")
 	return u, nil
+}
+
+// isPrintableASCII reports whether s contains only printable ASCII characters
+// from '!' (0x21) through '~' (0x7e), so no spaces or control characters.
+func isPrintableASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < 0x21 || s[i] > 0x7e {
+			return false
+		}
+	}
+	return true
 }
