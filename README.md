@@ -88,6 +88,18 @@ go run ./examples/basic
 
 The example makes no network request and performs no management operation.
 
+## Supported operations
+
+| Operation | Status |
+|-----------|--------|
+| Client construction, bearer API-key authentication | Implemented |
+| Domains: list and get by ID (read-only) | Implemented and verified against Stalwart 1.0.1 (see [docs/stalwart-api-validation.md](docs/stalwart-api-validation.md)) |
+| Domains: create, update, delete | Planned (after validation) |
+| Accounts and mailboxes | Planned (Milestone 4) |
+| Aliases | Planned (Milestone 5) |
+
+A read-only example lists domains: [`examples/domains`](examples/domains/main.go). It uses the same environment variables as the basic example, and the API key needs `sysDomainGet`.
+
 ## Security
 
 - Never commit Stalwart admin passwords, API tokens, certificates, or private keys.

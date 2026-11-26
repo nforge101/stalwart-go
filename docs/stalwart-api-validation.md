@@ -117,6 +117,19 @@ Stalwart reports permission and credential problems in three distinct ways:
 
 The third form matters most. An HTTP-level error check does not detect it, so a caller that only checks HTTP status would treat a denied request as success. From M3-S1, `callJMAP` reports it as a `*MethodError`, and the integration test `TestIntegration_NoPermissionKey` asserts this against the real server.
 
+## Domain read operations (M3-S2)
+
+The SDK's `Domains().List` and `Domains().Get` send these requests. The integration tests `TestIntegration_DomainsList`, `TestIntegration_DomainsGet`, `TestIntegration_DomainsGetUnknown`, and `TestIntegration_DomainsListNoPermission` passed against v1.0.1.
+
+| Request | Expected result | Status |
+|---------|-----------------|--------|
+| `x:Domain/get` with `ids: null` and `properties: ["name"]` | `list` of every domain | Verified (M2) |
+| `x:Domain/get` with `ids: ["<id>"]` for an existing domain | `list` with that domain | Verified (M3-S2) |
+| `x:Domain/get` with `ids: ["<id>"]` for an unknown domain | Empty `list`; the ID in `notFound`. The SDK returns `ErrNotFound` | Verified (M3-S2) |
+| `x:Domain/get` without `sysDomainGet` | Method-level `forbidden` error | Verified (M2) |
+
+A field probe (`TestIntegration_DomainFieldProbe`) requests the other documented `Domain` properties and logs which the server returns. Only the field names are recorded. On the test server, the probe returned all 12 candidate properties for the first domain: `aliases`, `allowRelaying`, `catchAllAddress`, `certificateManagement`, `createdAt`, `description`, `dkimManagement`, `dnsManagement`, `enable`, `reportAddressUri`, `subAddressing`, and `name`. The probe checks key presence only, not values or value types, and it checked one domain. A field is added to the SDK only after its value type is checked across all domains.
+
 ## Documented but not verified
 
 Stalwart's documentation (not yet checked against this server) describes:

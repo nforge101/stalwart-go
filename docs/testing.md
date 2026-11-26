@@ -105,6 +105,11 @@ If verification fails, the test output says so. Security software that inspects 
 | `TestIntegration_DomainGet` | `x:Domain/get` returns a `list` with the read-only key |
 | `TestIntegration_InvalidKey` | An unissued key gets HTTP 401, which maps to `ErrUnauthorized` |
 | `TestIntegration_NoPermissionKey` | A signed-in key without `sysDomainGet` gets HTTP 200 with a method-level `forbidden` error and no domain data |
+| `TestIntegration_DomainsList` | `Domains().List` returns at least one domain with an ID and name. The test server must hold a domain |
+| `TestIntegration_DomainsGet` | `Domains().Get` returns the same domain that `List` reports for its ID |
+| `TestIntegration_DomainsGetUnknown` | An unknown ID returns `ErrNotFound` |
+| `TestIntegration_DomainsListNoPermission` | A key without `sysDomainGet` gets a `*MethodError` matching `ErrForbidden` from `Domains().List` |
+| `TestIntegration_DomainFieldProbe` | Records which documented `Domain` properties the server returns. Logs names only and never fails for a missing property |
 
 The output lists observed field names, counts, and statuses, never hostnames, identifiers, domain names, or keys. It is the basis for [stalwart-api-validation.md](stalwart-api-validation.md).
 
