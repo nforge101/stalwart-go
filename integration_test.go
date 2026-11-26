@@ -39,8 +39,6 @@ const (
 
 	jmapSessionPath = "/jmap/session"
 
-	domainGetMethod = "x:Domain/get"
-
 	// invalidTestKey is a well-formed but unissued API key.
 	invalidTestKey = "API_integration-test-invalid-key"
 )
@@ -295,6 +293,118 @@ func TestIntegration_NoPermissionKey(t *testing.T) {
 	// free of server-supplied values.
 	t.Logf("observed: denied with HTTP 200 and a method-level error of type %q; description present: %t",
 		methodErr.Type, methodErr.Description != "")
+}
+
+// TestIntegration_DomainsList checks Domains().List against the server. The
+// test server must hold at least one domain.
+func TestIntegration_DomainsList(t *testing.T) {
+	c := newIntegrationClient(t, envTestAPIKey)
+
+	domains, err := c.Domains().List(testContext(t))
+	if err != nil {
+		failRequest(t, "Domains().List", err)
+	}
+	if len(domains) == 0 {
+		t.Fatal("the test server has no domains; add one before running the integration tests")
+	}
+	for i, d := range domains {
+		if d.ID == "" || d.Name == "" {
+			t.Errorf("domain %d lacks an ID or name", i)
+		}
+	}
+	t.Logf("observed: Domains().List returned %d domain(s)", len(domains))
+}
+
+// TestIntegration_DomainsGet checks that Domains().Get returns the same domain
+// that List reports for its ID.
+func TestIntegration_DomainsGet(t *testing.T) {
+	c := newIntegrationClient(t, envTestAPIKey)
+
+	domains, err := c.Domains().List(testContext(t))
+	if err != nil {
+		failRequest(t, "Domains().List", err)
+	}
+	if len(domains) == 0 {
+		t.Fatal("the test server has no domains; add one before running the integration tests")
+	}
+
+	want := domains[0]
+	got, err := c.Domains().Get(testContext(t), want.ID)
+	if err != nil {
+		failRequest(t, "Domains().Get", err)
+	}
+	if got != want {
+		t.Errorf("Get returned a different domain from List for the same ID")
+	}
+	t.Logf("observed: Domains().Get returned the domain that List reported")
+}
+
+// TestIntegration_DomainsGetUnknown checks that an ID the server does not have
+// is reported as ErrNotFound, not as a transport or decoding error.
+func TestIntegration_DomainsGetUnknown(t *testing.T) {
+	c := newIntegrationClient(t, envTestAPIKey)
+
+	_, err := c.Domains().Get(testContext(t), "integration-test-missing-domain")
+	if !errors.Is(err, ErrNotFound) {
+		failRequest(t, "Domains().Get with an unknown ID (want ErrNotFound)", err)
+	}
+	t.Logf("observed: unknown domain ID reported as ErrNotFound")
+}
+
+// TestIntegration_DomainsListNoPermission checks that a key without
+// sysDomainGet cannot list domains, and that the denial is a *MethodError
+// matching ErrForbidden.
+func TestIntegration_DomainsListNoPermission(t *testing.T) {
+	c := newIntegrationClient(t, envTestNoPermKey)
+
+	_, err := c.Domains().List(testContext(t))
+	if err == nil {
+		t.Fatal("a key without sysDomainGet listed domains")
+	}
+	var methodErr *MethodError
+	if !errors.As(err, &methodErr) || !errors.Is(err, ErrForbidden) {
+		failRequest(t, "Domains().List with a no-permission key (want a forbidden *MethodError)", err)
+	}
+	t.Logf("observed: Domains().List denied with method-level error of type %q", methodErr.Type)
+}
+
+// TestIntegration_DomainFieldProbe records which documented Domain properties
+// the server returns for x:Domain/get. It reads only and never fails for a
+// missing property, because its purpose is to inform which fields to expose.
+// Only property names are logged, never values.
+func TestIntegration_DomainFieldProbe(t *testing.T) {
+	c := newIntegrationClient(t, envTestAPIKey)
+
+	candidates := []string{
+		"name", "enable", "description", "aliases", "createdAt",
+		"catchAllAddress", "subAddressing", "allowRelaying", "reportAddressUri",
+		"certificateManagement", "dkimManagement", "dnsManagement",
+	}
+	args, err := c.callJMAP(testContext(t), domainGetMethod, map[string]any{
+		"ids":        nil,
+		"properties": candidates,
+	})
+	if err != nil {
+		var methodErr *MethodError
+		if errors.As(err, &methodErr) {
+			t.Logf("observed: probe refused with method-level error of type %q; no fields recorded", methodErr.Type)
+			return
+		}
+		failRequest(t, "probe x:Domain/get", err)
+	}
+
+	var got struct {
+		List []json.RawMessage `json:"list"`
+	}
+	if err := json.Unmarshal(args, &got); err != nil {
+		t.Fatalf("probe response is not an object: %v", err)
+	}
+	if len(got.List) == 0 {
+		t.Logf("observed: probe returned no domains; no fields recorded")
+		return
+	}
+	present := jsonKeys(got.List[0])
+	t.Logf("observed: domain properties returned by the server: %s", strings.Join(present, ", "))
 }
 
 // mustMarshal encodes v as JSON, failing the test on error.

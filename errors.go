@@ -32,6 +32,11 @@ var ErrTransport = errors.New("stalwart: transport failure")
 // expected value. The response body itself is not included in the error.
 var ErrDecode = errors.New("stalwart: decode response")
 
+// ErrNotFound reports that the server does not have the object that a request
+// named. Domain operations return it when a domain ID is not on the server. It
+// is distinct from an HTTP 404 (*APIError), which does not match this sentinel.
+var ErrNotFound = errors.New("stalwart: not found")
+
 // APIError reports a non-2xx HTTP response from Stalwart.
 //
 // StatusCode is the HTTP status code. Message is a sanitized, truncated excerpt

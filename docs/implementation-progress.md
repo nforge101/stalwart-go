@@ -8,11 +8,11 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Active slice
 
-**M3-S1 — JMAP call helper and method-level errors** (`feat/jmap-method-errors`, implemented, awaiting review and commit)
+**M3-S2 — Read operations** (`feat/domain-read-operation`, implemented and verified against Stalwart 1.0.1, awaiting commit)
 
-Scope: one internal helper for JMAP method calls, and a typed `*MethodError` for rejections that arrive inside an HTTP 200 response. No domain operations, no `Domain` type, and no write operations.
+Scope: the first exported domain operations, both read-only: `Domains().List` and `Domains().Get`, using the verified `x:Domain/get`. `Domain` exposes only `ID` and `Name`. No write operations and no name lookup.
 
-M1 (SDK foundation) and M2 (API validation) are complete.
+M1 (SDK foundation), M2 (API validation), and M3-S1 (JMAP helper and method errors) are complete.
 
 ## Completed slices
 
@@ -23,6 +23,8 @@ M1 (SDK foundation) and M2 (API validation) are complete.
 | M1-S3 — Transport, errors, and auth | Squash-merged into `main` via PR #3 (`05e580e`) | Internal request helper, typed errors (`APIError`, sentinels), Bearer API-key auth with redaction, response limits, concurrency and TLS tests |
 | M1-S4 — Example, CI, and docs | Squash-merged into `main` via PR #4 (`d9fd004`) | `examples/basic`, race detector and example build in CI, README quick start, testing/development/compatibility docs |
 | M2 — Stalwart API validation | Squash-merged into `main` via PR #5 (`4f51a80`) | Opt-in read-only integration tests against Stalwart v1.0.1, sanitized evidence, first compatibility row |
+| M3-S1 — JMAP helper and method errors | Squash-merged into `main` via PR #6 (`2980ea0`) | Internal `callJMAP` helper, exported `*MethodError` (`forbidden` matches `ErrForbidden`), unit tests for the envelope and both error types |
+| M3-S2 — Read operations | Implemented on `feat/domain-read-operation`; verified against Stalwart 1.0.1 (all 9 integration tests pass); awaiting commit | `Domains().List` and `Domains().Get`, `Domain` with `ID` and `Name` only, `ErrNotFound`, `examples/domains`, field probe result recorded |
 
 ## Architectural decisions
 
@@ -37,6 +39,7 @@ M1 (SDK foundation) and M2 (API validation) are complete.
 | Caller-supplied HTTP client | Used as provided and never modified; `WithTimeout` cannot be combined with `WithHTTPClient` |
 | Request paths | Relative to the base URL; must start with `/`, be printable ASCII, and contain no `?`, `#`, `\`, or `.`/`..` segments (including percent-encoded forms). Dynamic values must be escaped with `url.PathEscape` so they cannot add segments |
 | Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel. Method-level JMAP errors inside an HTTP 200 are returned as `*MethodError`; its `Type` `forbidden` matches `ErrForbidden` |
+| Domain operations | Exposed as `client.Domains()`, returning a `DomainService` with `List(ctx)` and `Get(ctx, id)`. `Domain` has `ID` and `Name` only. `Get` returns `ErrNotFound` when the server reports the ID as missing; an HTTP 404 does not match it. Invalid IDs (empty, longer than 256 bytes, or containing non-ASCII or spaces) fail locally, without a request. Lists are not paginated, because Stalwart returns all domains at once |
 | JMAP calls | One internal helper, `callJMAP`, sends one method call per request to `/jmap/` with call ID `c1` and both verified capabilities. Method-level `error` responses become `*MethodError`. Responses of unexpected shape wrap `ErrDecode`. Error text never includes server-supplied names or identifiers |
 | Response limits | Error bodies: 4 KiB read, 512 bytes kept. Success bodies: 16 MiB decode limit. Response bodies are always closed |
 | Concurrency | `Client` is immutable after construction and safe for concurrent use |
@@ -90,7 +93,5 @@ Test design notes:
 - Consider adding `.gitattributes` (`* text=auto eol=lf`) so Windows contributors do not see CRLF-related `gofmt` noise.
 
 ## Next planned slice
-
-**M3-S2 — Read operations.** Exported `Domain` type and read-only domain operations (`Get` and `List`, using the verified `x:Domain/get`), with unit tests, integration tests, and a runnable `examples/domains`.
 
 **M3-S3 — Write operations.** Validate `x:Domain/set` (create, update, destroy) on disposable domains, behind an explicit write guard in the integration tests. Document conflict behavior, then add the exported operations.

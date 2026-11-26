@@ -24,9 +24,9 @@ CI runs `go vet`, `go test`, `go test -race`, and `go build` on each Go version 
 
 | Stalwart version | Image digest | Authentication | API behavior verified | Exported SDK operations | Integration tests | Date |
 |------------------|--------------|----------------|-----------------------|-------------------------|-------------------|------|
-| v1.0.1 | `sha256:b9da4df8b4efc06bc926dd6e990bdeb0ad7b9261a7c3893d74b0461a00bb389b` | Bearer API key | Session; `x:Domain/get` (read-only); 401 and 403 responses; method-level `forbidden` error | None yet | Pass (4 tests) | 2026-11-26 |
+| v1.0.1 | `sha256:b9da4df8b4efc06bc926dd6e990bdeb0ad7b9261a7c3893d74b0461a00bb389b` | Bearer API key | Session; `x:Domain/get` (read-only); 401 and 403 responses; method-level `forbidden` error | `Domains().List`, `Domains().Get` (M3-S2) | Pass (4 tests, M2); domain tests pass (M3-S2) | 2026-11-26 |
 
-Only the operations in the "API behavior verified" column are validated, and only on this version. Everything else, including every write operation, is unvalidated and therefore unsupported. The SDK does not yet export any management operation; domain operations arrive in Milestone 3.
+Only the operations in the "API behavior verified" column are validated, and only on this version. Everything else, including every write operation, is unvalidated and therefore unsupported. The read operations in the "Exported SDK operations" column were verified against this version by the M3-S2 integration tests.
 
 Versions not listed in the table are not supported. See [stalwart-api-validation.md](stalwart-api-validation.md) for the evidence and its limits.
 

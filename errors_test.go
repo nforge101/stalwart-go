@@ -107,7 +107,7 @@ func TestErrorsMatchWhenWrapped(t *testing.T) {
 // TestSentinelsAreDistinct checks that no sentinel matches another, so callers
 // can rely on errors.Is for each category.
 func TestSentinelsAreDistinct(t *testing.T) {
-	sentinels := []error{ErrInvalidConfig, ErrUnauthorized, ErrForbidden, ErrTransport, ErrDecode}
+	sentinels := []error{ErrInvalidConfig, ErrUnauthorized, ErrForbidden, ErrTransport, ErrDecode, ErrNotFound}
 	for i, a := range sentinels {
 		for j, b := range sentinels {
 			if i != j && errors.Is(a, b) {
