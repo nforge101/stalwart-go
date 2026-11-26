@@ -8,9 +8,9 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Active slice
 
-**M1-S3 — Transport, errors, and auth** (`feat/transport-errors-auth`, implemented, awaiting review and commit)
+**M1-S4 — Example, CI, and docs** (`feat/example-ci-docs`, implemented, awaiting review and commit)
 
-Scope: an internal request helper, a structured error model, Bearer API-key authentication, redaction, and concurrency tests. No management operations and no exported request methods yet.
+Scope: a runnable example that builds a client from environment variables without making a network call, CI that builds the examples and runs the race detector on Linux, and documentation for testing, development, and compatibility. No management operations and no exported request methods.
 
 ## Completed slices
 
@@ -18,6 +18,7 @@ Scope: an internal request helper, a structured error model, Bearer API-key auth
 |-------|--------|---------|
 | M1-S1 — OSS bootstrap | Squash-merged into `main` via PR #1 (`3830c5a`) | Pre-release status, `.gitignore` hardening, `SECURITY.md`, `CONTRIBUTING.md`, CI on Go 1.26.x and 1.27.x, issue templates, package doc |
 | M1-S2 — SDK client foundation | Squash-merged into `main` via PR #2 (`6e41db7`) | `NewClient` with functional options, base URL validation, default HTTP client with timeout and no redirect following, unit tests |
+| M1-S3 — Transport, errors, and auth | Squash-merged into `main` via PR #3 (`05e580e`) | Internal request helper, typed errors (`APIError`, sentinels), Bearer API-key auth with redaction, response limits, concurrency and TLS tests |
 
 ## Architectural decisions
 
@@ -34,6 +35,7 @@ Scope: an internal request helper, a structured error model, Bearer API-key auth
 | Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel |
 | Response limits | Error bodies: 4 KiB read, 512 bytes kept. Success bodies: 16 MiB decode limit. Response bodies are always closed |
 | Concurrency | `Client` is immutable after construction and safe for concurrent use |
+| Environment variables | The SDK never reads them. The example reads `STALWART_URL` and `STALWART_API_KEY`; integration-test variables are decided in M2 |
 | Dependencies | Standard library only |
 | Go version | `go 1.26.0` minimum; CI tests 1.26 and 1.27 |
 | REST wrapper | Later milestone (M7); self-hosted by adopters; mandatory caller auth when introduced |
@@ -61,26 +63,27 @@ Recorded on Windows with Go **1.27.4**:
 | Check | Result | Notes |
 |-------|--------|-------|
 | `go vet ./...` | Pass | |
-| `go test -count=1 -v ./...` | Pass | 32 top-level tests, 38 subtests, 0 failures |
+| `go test -count=1 -v ./...` | Pass | 32 top-level tests, 38 subtests, 0 failures (M1-S3). M1-S4 adds example tests; see the pull request for final counts |
 | `go build ./...` | Pass | |
+| `go build ./examples/...` | Pass | |
 | `gofmt` | Pass | Checked on LF-normalized copies. The working tree uses CRLF because `core.autocrlf=true` |
-| `go test -race ./...` | Not executed | Requires CGO and a C toolchain on this Windows host. CI does not run `-race` yet |
+| `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Added to CI for Linux in M1-S4 |
 | Integration / Stalwart | Not run | Requires the M2 environment |
 
 Test design notes:
 
 - Transport tests use `httptest.NewTLSServer`. Clients are built with `NewClient` and trust the test certificate through the server's own HTTP client (`srv.Client()`). Certificate verification stays enabled everywhere.
 - On the development machine, Norton Web/Mail Shield re-signed loopback TLS certificates, so the TLS tests initially failed verification. Verification was working correctly. After adding Norton exclusions for `https://127.0.0.1/*`, `http://127.0.0.1/*`, and `https://localhost.localdomain/*`, the loopback certificate is no longer replaced, and the TLS tests pass. Keep these exclusions in mind if the tests fail on another machine with similar security software.
-- Concurrency is exercised with 20 goroutines × 5 requests. Race detection is still pending (see above).
+- Concurrency is exercised with 20 goroutines × 5 requests. Race detection runs in CI on Linux.
 - Windows occasionally fails to delete the temporary test binary while a scanner holds it. This affects cleanup only; the exit code of the test run itself is what matters, and the run passed.
 
 ## Outstanding risks
 
 - The Stalwart management API contract is unverified on a pinned instance, and the auth scheme (API key via Bearer) is documented but not confirmed for the management endpoints.
-- `-race` has not been run locally or in CI yet.
+- `-race` has not been run locally on Windows. It runs only in CI until a C toolchain is installed.
 - Basic auth is intentionally absent until validated.
 - Consider adding `.gitattributes` (`* text=auto eol=lf`) so Windows contributors do not see CRLF-related `gofmt` noise.
 
 ## Next planned slice
 
-**M1-S4 — Example, CI, and docs** (`feat/example-ci-docs`): `examples/basic` that constructs a client from environment variables and performs no management operation; README quick-start aligned with the implemented API; `docs/testing.md`, `docs/development.md`, and `docs/compatibility.md`; CI extended to compile examples.
+**M2 — Stalwart API validation** against a pinned Stalwart version: verify the management contract (starting with `x:Domain/get`), record the results in `docs/stalwart-api-validation.md`, add a compatibility entry, and add opt-in integration tests (`-tags=integration`) that never target production.
