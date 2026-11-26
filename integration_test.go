@@ -38,29 +38,12 @@ const (
 	integrationTimeout = 30 * time.Second
 
 	jmapSessionPath = "/jmap/session"
-	jmapAPIPath     = "/jmap/"
-
-	jmapCoreCapability = "urn:ietf:params:jmap:core"
-	stalwartCapability = "urn:stalwart:jmap"
 
 	domainGetMethod = "x:Domain/get"
 
 	// invalidTestKey is a well-formed but unissued API key.
 	invalidTestKey = "API_integration-test-invalid-key"
 )
-
-// jmapRequest is the body of a JMAP API request. Each method call is the
-// three-element array [name, arguments, callId].
-type jmapRequest struct {
-	Using       []string `json:"using"`
-	MethodCalls [][]any  `json:"methodCalls"`
-}
-
-// jmapResponse is the body of a JMAP API response. Each method response is the
-// three-element array [name, arguments, callId].
-type jmapResponse struct {
-	MethodResponses [][]json.RawMessage `json:"methodResponses"`
-}
 
 // requireEnv returns the value of the named environment variable, or fails the
 // test with a message that names the variable but never its value.
@@ -170,38 +153,11 @@ func describeBody(body string) string {
 	return desc
 }
 
-// onlyMethodResponse returns the name, arguments, and call ID of the single
-// method response in resp, failing the test if the response has another shape.
-func onlyMethodResponse(t *testing.T, resp jmapResponse) (name string, args json.RawMessage, callID string) {
-	t.Helper()
-	if len(resp.MethodResponses) != 1 {
-		t.Fatalf("got %d method responses, want 1", len(resp.MethodResponses))
-	}
-	mr := resp.MethodResponses[0]
-	if len(mr) != 3 {
-		t.Fatalf("method response has %d elements, want 3 (name, arguments, call ID)", len(mr))
-	}
-	if err := json.Unmarshal(mr[0], &name); err != nil {
-		t.Fatalf("method response name is not a string: %v", err)
-	}
-	if err := json.Unmarshal(mr[2], &callID); err != nil {
-		t.Fatalf("method response call ID is not a string: %v", err)
-	}
-	return name, mr[1], callID
-}
-
-// domainGetRequest asks for every domain, returning only the name property.
-// Per RFC 8620, a null "ids" means all records. Stalwart's documentation shows
-// no accountId argument for management calls, so none is sent.
-func domainGetRequest() jmapRequest {
-	return jmapRequest{
-		Using: []string{jmapCoreCapability, stalwartCapability},
-		MethodCalls: [][]any{{
-			domainGetMethod,
-			map[string]any{"ids": nil, "properties": []string{"name"}},
-			"c1",
-		}},
-	}
+// domainGetArgs asks for every domain, returning only the name property. Per
+// RFC 8620, a null "ids" means all records. Stalwart's documentation shows no
+// accountId argument for management calls, so none is sent.
+func domainGetArgs() map[string]any {
+	return map[string]any{"ids": nil, "properties": []string{"name"}}
 }
 
 // TestIntegration_Session checks that the session resource is served and
@@ -237,8 +193,8 @@ func TestIntegration_Session(t *testing.T) {
 	if err != nil {
 		t.Fatalf("session apiUrl is not a valid URL")
 	}
-	if u.Path != jmapAPIPath {
-		t.Errorf("session apiUrl path = %q, want %q", u.Path, jmapAPIPath)
+	if u.Path != jmapPath {
+		t.Errorf("session apiUrl path = %q, want %q", u.Path, jmapPath)
 	}
 
 	t.Logf("observed: session fields: %s", strings.Join(jsonKeys(mustMarshal(t, session)), ", "))
@@ -251,20 +207,9 @@ func TestIntegration_Session(t *testing.T) {
 func TestIntegration_DomainGet(t *testing.T) {
 	c := newIntegrationClient(t, envTestAPIKey)
 
-	var resp jmapResponse
-	if err := c.doJSON(testContext(t), http.MethodPost, jmapAPIPath, domainGetRequest(), &resp); err != nil {
-		failRequest(t, "POST "+jmapAPIPath+" "+domainGetMethod, err)
-	}
-
-	name, args, callID := onlyMethodResponse(t, resp)
-	if name == "error" {
-		t.Fatalf("%s returned a method-level error of type %q", domainGetMethod, stringField(args, "type"))
-	}
-	if name != domainGetMethod {
-		t.Fatalf("method response name = %q, want %q", name, domainGetMethod)
-	}
-	if callID != "c1" {
-		t.Errorf("method response call ID = %q, want %q", callID, "c1")
+	args, err := c.callJMAP(testContext(t), domainGetMethod, domainGetArgs())
+	if err != nil {
+		failRequest(t, "POST "+jmapPath+" "+domainGetMethod, err)
 	}
 
 	var got map[string]json.RawMessage
@@ -313,7 +258,7 @@ func TestIntegration_InvalidKey(t *testing.T) {
 // TestIntegration_NoPermissionKey checks how Stalwart 1.0.1 denies a key that
 // can sign in but lacks sysDomainGet. The HTTP request succeeds, and the denial
 // arrives as a method-level JMAP error of type "forbidden" inside a 200
-// response. It is not an HTTP 403, so ErrForbidden does not apply.
+// response. callJMAP must report it as a *MethodError matching ErrForbidden.
 //
 // A key that lacks the sign-in permission is refused earlier, with an HTTP 403
 // before any method runs. That case was observed while setting up the test
@@ -326,25 +271,30 @@ func TestIntegration_NoPermissionKey(t *testing.T) {
 		failRequest(t, "GET "+jmapSessionPath+" (the key must hold the sign-in permission)", err)
 	}
 
-	var resp jmapResponse
-	if err := c.doJSON(testContext(t), http.MethodPost, jmapAPIPath, domainGetRequest(), &resp); err != nil {
-		failRequest(t, "POST "+jmapAPIPath+" "+domainGetMethod+" (a method-level denial is expected, not an HTTP error)", err)
+	_, err := c.callJMAP(testContext(t), domainGetMethod, domainGetArgs())
+	if err == nil {
+		t.Fatalf("a key without sysDomainGet was allowed to call %s; "+
+			"check that it holds only the sign-in permission", domainGetMethod)
 	}
 
-	name, args, callID := onlyMethodResponse(t, resp)
-	if name != "error" {
-		t.Fatalf("a key without sysDomainGet was allowed to call %s (response %q); "+
-			"check that it holds only the sign-in permission", domainGetMethod, name)
+	var methodErr *MethodError
+	if !errors.As(err, &methodErr) {
+		failRequest(t, "POST "+jmapPath+" "+domainGetMethod+" (a method-level denial is expected, not an HTTP error)", err)
 	}
-	if typ := stringField(args, "type"); typ != "forbidden" {
-		t.Errorf("method-level error type = %q, want %q", typ, "forbidden")
+	if methodErr.Type != "forbidden" {
+		t.Errorf("method error type = %q, want %q", methodErr.Type, "forbidden")
 	}
-	if callID != "c1" {
-		t.Errorf("method response call ID = %q, want %q", callID, "c1")
+	if !errors.Is(err, ErrForbidden) {
+		t.Errorf("method error does not match ErrForbidden")
+	}
+	if errors.Is(err, ErrUnauthorized) {
+		t.Errorf("method error unexpectedly matches ErrUnauthorized")
 	}
 
-	t.Logf("observed: denied with HTTP 200 and a method-level error of type %q; error fields: %s",
-		stringField(args, "type"), strings.Join(jsonKeys(args), ", "))
+	// Log whether a description was returned, not its text, so output stays
+	// free of server-supplied values.
+	t.Logf("observed: denied with HTTP 200 and a method-level error of type %q; description present: %t",
+		methodErr.Type, methodErr.Description != "")
 }
 
 // mustMarshal encodes v as JSON, failing the test on error.

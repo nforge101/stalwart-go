@@ -23,6 +23,10 @@ Other transport tests cover:
 
 The `Connection closed` or `TLS handshake error` lines in verbose output are expected. They come from tests that deliberately abandon connections.
 
+### JMAP tests
+
+`jmap_test.go` covers the management call helper against the same local TLS server. It checks the request shape and credentials, a method error for `forbidden` (which matches `ErrForbidden`), other method error types (which match no sentinel), description sanitization, HTTP errors passing through unchanged, and malformed response shapes (which wrap `ErrDecode`). `errors_test.go` checks the error text and unwrapping directly.
+
 ### Example tests
 
 `examples/basic` tests inject the environment through a function, so they never read the real environment. They check that the API key never appears in output or error text.

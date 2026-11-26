@@ -31,6 +31,20 @@ The SDK must remain independent of REST frameworks, databases, frontends, and de
 | SDK → Stalwart | Consumer backend via SDK → Stalwart | Management privilege (admin API key or equivalent) |
 | REST caller auth (M7+) | Callers → deployed REST service | Separate from Stalwart credentials; required before privileged write routes |
 
+## Management protocol and errors
+
+Stalwart's management operations use JMAP at `/jmap/`. Each SDK call sends one method call per request, through the internal helper `callJMAP` (`jmap.go`). The helper's result is one of three things:
+
+| Outcome | Returned as | Meaning |
+|---------|-------------|---------|
+| Success | The method's arguments | The method ran |
+| HTTP error | `*APIError` | Stalwart refused the request before any method ran (for example 401 or 403) |
+| Method error | `*MethodError` | The request arrived, but Stalwart rejected the method inside an HTTP 200 response |
+
+Callers must handle both error types. A check on the HTTP status alone would miss method errors. Unexpected response shapes wrap `ErrDecode`.
+
+Public operations are added only after they are verified against a real server (see [stalwart-api-validation.md](stalwart-api-validation.md)).
+
 ## M1 scope
 
 Milestone 1 establishes module hygiene, documentation, CI, and (in later M1 slices) a public client with safe transport and structured errors. It does **not** implement domain, account, or alias operations, and does not assume unverified Stalwart endpoints.

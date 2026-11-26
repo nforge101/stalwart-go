@@ -18,8 +18,8 @@ var ErrInvalidConfig = errors.New("stalwart: invalid configuration")
 var ErrUnauthorized = errors.New("stalwart: unauthorized")
 
 // ErrForbidden reports that Stalwart accepted the credentials but the account
-// lacks permission for the operation (HTTP 403). It is wrapped by the *APIError
-// returned for that response.
+// lacks permission for the operation. It is wrapped by the *APIError returned
+// for an HTTP 403 response, and by a *MethodError whose Type is "forbidden".
 var ErrForbidden = errors.New("stalwart: forbidden")
 
 // ErrTransport reports that the request could not be sent or no response was
@@ -66,4 +66,36 @@ func (e *APIError) Unwrap() error {
 	default:
 		return nil
 	}
+}
+
+// MethodError reports that Stalwart rejected a JMAP method call. The HTTP
+// request succeeded: the rejection arrives as an "error" method response inside
+// an HTTP 200 body, so no *APIError is involved. Callers must check for
+// MethodError to detect these rejections.
+//
+// Type is the JMAP error type, such as "forbidden". Description is a sanitized,
+// truncated excerpt of the server's description, with the same rules as
+// APIError.Message. It may be empty.
+//
+// errors.Is matches ErrForbidden when Type is "forbidden". Other types match no
+// sentinel.
+type MethodError struct {
+	Type        string
+	Description string
+}
+
+// Error implements the error interface.
+func (e *MethodError) Error() string {
+	if e.Description == "" {
+		return fmt.Sprintf("stalwart: method error %s", e.Type)
+	}
+	return fmt.Sprintf("stalwart: method error %s: %s", e.Type, e.Description)
+}
+
+// Unwrap returns ErrForbidden when Type is "forbidden" and nil otherwise.
+func (e *MethodError) Unwrap() error {
+	if e.Type == "forbidden" {
+		return ErrForbidden
+	}
+	return nil
 }
