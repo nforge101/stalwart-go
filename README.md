@@ -25,50 +25,87 @@ This repository is a public open-source project under the [NForge101](https://gi
 | Area | Status |
 |------|--------|
 | Go module (`go.mod`) | Declared |
-| Public client API | Planned (Milestone 1) |
+| Client construction, transport, errors, bearer auth | Implemented (pre-release) |
+| Example and CI | Implemented (pre-release) |
 | Stalwart API validation | Planned (Milestone 2) |
 | Domain / account / alias operations | Planned (after validation) |
 | Optional REST wrapper | Planned (later milestone) |
 | Tagged release | Not yet |
 
-See [docs/implementation-progress.md](docs/implementation-progress.md) for the current milestone and slice.
+No management operations are available yet. See [docs/implementation-progress.md](docs/implementation-progress.md) for the current milestone and slice.
 
 ## Requirements
 
-- Go **1.26** or later (developed against the Go 1.26 / 1.27 toolchains)
-- A Stalwart instance for live operations and integration tests (not required to compile the module once source exists)
+- Go **1.26** or later (CI tests the Go 1.26 and 1.27 toolchains)
+- A Stalwart instance for live operations and integration tests (not required to compile or unit-test the module)
 
-Supported Stalwart versions will be listed in `docs/compatibility.md` after real-server validation. Untested configurations are not claimed as supported.
+Supported Stalwart versions will be listed in [docs/compatibility.md](docs/compatibility.md) after real-server validation. Untested configurations are not claimed as supported.
 
 ## Installation
 
-Once the first importable client code is published:
+There is no tagged release yet. To use the pre-release code:
 
 ```bash
-go get github.com/nforge101/stalwart-go
+go get github.com/nforge101/stalwart-go@main
 ```
 
-Runnable examples will live under `examples/` and will use:
+For reproducible builds, pin a specific commit instead of `@main`.
+
+## Quick start
+
+The client is created with the Stalwart server's HTTPS base URL and an API key. Credentials are read from the environment or a secrets manager, never hard-coded:
 
 ```go
-import stalwart "github.com/nforge101/stalwart-go"
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+
+	stalwart "github.com/nforge101/stalwart-go"
+)
+
+func main() {
+	client, err := stalwart.NewClient(
+		os.Getenv("STALWART_URL"),                    // for example https://mail.example.com
+		stalwart.WithBearerToken(os.Getenv("STALWART_API_KEY")), // begins with API_
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(client) // prints the base URL with credentials redacted
+}
 ```
+
+A runnable version is in [`examples/basic`](examples/basic/main.go):
+
+```bash
+export STALWART_URL=https://mail.example.com
+export STALWART_API_KEY=API_your_key_here
+go run ./examples/basic
+```
+
+The example makes no network request and performs no management operation.
 
 ## Security
 
 - Never commit Stalwart admin passwords, API tokens, certificates, or private keys.
 - Configure credentials via environment variables or a secrets manager.
-- The SDK will verify TLS by default. Do not disable certificate verification for convenience.
+- The SDK verifies TLS certificates by default. Do not disable certificate verification for convenience.
 - See [SECURITY.md](SECURITY.md) and (as it grows) [docs/security.md](docs/security.md).
 
 ## Documentation
 
-| Document                                                           | Description                             |
-| ------------------------------------------------------------------ | --------------------------------------- |
-| [docs/architecture.md](docs/architecture.md)                       | System context and dependency direction |
-| [docs/implementation-progress.md](docs/implementation-progress.md) | Milestone/slice progress                |                                      |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                 | How to contribute                       |
-| [SECURITY.md](SECURITY.md)                                         | Vulnerability reporting                 |
+| Document | Description |
+|----------|-------------|
+| [docs/architecture.md](docs/architecture.md) | System context and dependency direction |
+| [docs/implementation-progress.md](docs/implementation-progress.md) | Milestone and slice progress |
+| [docs/development.md](docs/development.md) | Local setup and checks |
+| [docs/testing.md](docs/testing.md) | Test strategy and how to run tests |
+| [docs/compatibility.md](docs/compatibility.md) | Supported Go and Stalwart versions |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 
 ## Contributing
 
