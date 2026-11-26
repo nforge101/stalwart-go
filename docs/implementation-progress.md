@@ -4,15 +4,15 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Current milestone
 
-**M2 — Stalwart API validation and compatibility baseline**
+**M3 — Domain operations**
 
 ## Active slice
 
-**M2 — Read-only API validation** (`feat/stalwart-api-validation`, implemented, awaiting review and commit)
+**M3-S1 — JMAP call helper and method-level errors** (`feat/jmap-method-errors`, implemented, awaiting review and commit)
 
-Scope: validate a read-only management call against a real, pinned Stalwart server, record sanitized evidence, add opt-in integration tests, and start the compatibility matrix. No exported management operations and no write operations.
+Scope: one internal helper for JMAP method calls, and a typed `*MethodError` for rejections that arrive inside an HTTP 200 response. No domain operations, no `Domain` type, and no write operations.
 
-M1 (SDK foundation) is complete.
+M1 (SDK foundation) and M2 (API validation) are complete.
 
 ## Completed slices
 
@@ -22,6 +22,7 @@ M1 (SDK foundation) is complete.
 | M1-S2 — SDK client foundation | Squash-merged into `main` via PR #2 (`6e41db7`) | `NewClient` with functional options, base URL validation, default HTTP client with timeout and no redirect following, unit tests |
 | M1-S3 — Transport, errors, and auth | Squash-merged into `main` via PR #3 (`05e580e`) | Internal request helper, typed errors (`APIError`, sentinels), Bearer API-key auth with redaction, response limits, concurrency and TLS tests |
 | M1-S4 — Example, CI, and docs | Squash-merged into `main` via PR #4 (`d9fd004`) | `examples/basic`, race detector and example build in CI, README quick start, testing/development/compatibility docs |
+| M2 — Stalwart API validation | Squash-merged into `main` via PR #5 (`4f51a80`) | Opt-in read-only integration tests against Stalwart v1.0.1, sanitized evidence, first compatibility row |
 
 ## Architectural decisions
 
@@ -35,7 +36,8 @@ M1 (SDK foundation) is complete.
 | Default HTTP client | Standard TLS verification, 30 second timeout, redirects not followed (the redirect response is returned to the caller) |
 | Caller-supplied HTTP client | Used as provided and never modified; `WithTimeout` cannot be combined with `WithHTTPClient` |
 | Request paths | Relative to the base URL; must start with `/`, be printable ASCII, and contain no `?`, `#`, `\`, or `.`/`..` segments (including percent-encoded forms). Dynamic values must be escaped with `url.PathEscape` so they cannot add segments |
-| Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel. Method-level JMAP errors inside an HTTP 200 are not yet surfaced; see the M3 note below |
+| Errors | `*APIError` for non-2xx responses (status and sanitized excerpt). `ErrUnauthorized` (401) and `ErrForbidden` (403) match via `errors.Is`. `ErrTransport` wraps send/receive failures, including timeouts and cancellation. `ErrDecode` wraps malformed success bodies. A 404 does not match any sentinel. Method-level JMAP errors inside an HTTP 200 are returned as `*MethodError`; its `Type` `forbidden` matches `ErrForbidden` |
+| JMAP calls | One internal helper, `callJMAP`, sends one method call per request to `/jmap/` with call ID `c1` and both verified capabilities. Method-level `error` responses become `*MethodError`. Responses of unexpected shape wrap `ErrDecode`. Error text never includes server-supplied names or identifiers |
 | Response limits | Error bodies: 4 KiB read, 512 bytes kept. Success bodies: 16 MiB decode limit. Response bodies are always closed |
 | Concurrency | `Client` is immutable after construction and safe for concurrent use |
 | Environment variables | The SDK never reads them. The example reads `STALWART_URL` and `STALWART_API_KEY`. Integration tests read `STALWART_TEST_URL`, `STALWART_TEST_API_KEY`, and `STALWART_TEST_NOPERM_API_KEY`; the separate prefix keeps tests from picking up a real server's settings |
@@ -67,7 +69,7 @@ Recorded on Windows with Go **1.27.4**:
 | `go test -count=1 ./...` | Pass | Integration tests are excluded without the tag |
 | `go build ./...` | Pass | |
 | `gofmt` | Pass | Checked on LF-normalized copies. The working tree uses CRLF because `core.autocrlf=true` |
-| `go test -tags=integration` | Pass against v1.0.1 | Four tests, run manually against a local test server. Not run in CI |
+| `go test -tags=integration` | Pass against v1.0.1 (M2) | Four tests, run manually against a local test server. Not run in CI. M3-S1 changed the no-permission test to use `callJMAP`; re-run before merging |
 | `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Runs in CI on Linux |
 
 Test design notes:
@@ -89,4 +91,6 @@ Test design notes:
 
 ## Next planned slice
 
-**M3 — Domains.** Before exposing any domain operation, add typed handling for method-level JMAP errors. A denied request returns HTTP 200 with a `forbidden` error inside `methodResponses`, so the current `doJSON` reports success for it. Then validate `x:Domain/set` (create, update, destroy) on disposable domains, behind an explicit write guard in the integration tests, and add the first exported domain operations.
+**M3-S2 — Read operations.** Exported `Domain` type and read-only domain operations (`Get` and `List`, using the verified `x:Domain/get`), with unit tests, integration tests, and a runnable `examples/domains`.
+
+**M3-S3 — Write operations.** Validate `x:Domain/set` (create, update, destroy) on disposable domains, behind an explicit write guard in the integration tests. Document conflict behavior, then add the exported operations.

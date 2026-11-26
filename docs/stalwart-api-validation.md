@@ -22,7 +22,7 @@ Evidence is sanitized. It never contains hostnames, account or domain identifier
 | `GET /jmap/session` with a bearer API key | Verified |
 | `x:Domain/get` (read-only) | Verified |
 | Unissued API key is rejected with HTTP 401 | Verified |
-| Signed-in key without `sysDomainGet` is denied with a method-level `forbidden` error | Verified |
+| Signed-in key without `sysDomainGet` is denied with a method-level `forbidden` error | Verified; SDK reports `*MethodError` (M3-S1) |
 | Key without the sign-in permission is rejected with HTTP 403 | Observed during setup; not covered by an automated test |
 | Basic authentication | Not validated |
 | `x:Domain/set`, `x:Domain/query`, accounts, aliases | Not validated (later milestones) |
@@ -113,9 +113,9 @@ Stalwart reports permission and credential problems in three distinct ways:
 |-----------|-------------|------|------------------|
 | Unissued API key | 401 | JSON object with the fields `type`, `title`, `status`, `detail`; `type` is `about:blank` | `*APIError`, matches `ErrUnauthorized` |
 | Key without the sign-in permission | 403 | Same object shape: `title` is `Forbidden`, `detail` is "You do not have enough permissions to access this resource." | `*APIError`, matches `ErrForbidden` |
-| Signed-in key without the method permission | 200 | One method response named `error`; its arguments have the fields `type` (value `forbidden`) and `description` | No error. `doJSON` succeeds and the caller must inspect the response |
+| Signed-in key without the method permission | 200 | One method response named `error`; its arguments have the fields `type` (value `forbidden`) and `description` | `*MethodError` with `Type` `forbidden`, matching `ErrForbidden` (M3-S1) |
 
-The third form matters most. An HTTP-level error check does not detect it, so a caller that only checks the returned `error` would treat a denied request as success. The SDK needs a typed method-level error for management calls before it adds domain operations (Milestone 3).
+The third form matters most. An HTTP-level error check does not detect it, so a caller that only checks HTTP status would treat a denied request as success. From M3-S1, `callJMAP` reports it as a `*MethodError`, and the integration test `TestIntegration_NoPermissionKey` asserts this against the real server.
 
 ## Documented but not verified
 
