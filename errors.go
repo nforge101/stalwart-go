@@ -37,6 +37,28 @@ var ErrDecode = errors.New("stalwart: decode response")
 // is distinct from an HTTP 404 (*APIError), which does not match this sentinel.
 var ErrNotFound = errors.New("stalwart: not found")
 
+// ErrAlreadyExists reports that a create was refused because an object with the
+// same unique value already exists, such as a domain with the same name.
+var ErrAlreadyExists = errors.New("stalwart: already exists")
+
+// RejectedError reports that Stalwart refused one object in a write request
+// (a "notCreated", "notUpdated", or "notDestroyed" entry) for a reason that has
+// no sentinel. Type is the JMAP error type, such as "validationFailed".
+// Description is a sanitized, truncated excerpt, with the same rules as
+// APIError.Message. It may be empty.
+type RejectedError struct {
+	Type        string
+	Description string
+}
+
+// Error implements the error interface.
+func (e *RejectedError) Error() string {
+	if e.Description == "" {
+		return fmt.Sprintf("stalwart: write rejected: %s", e.Type)
+	}
+	return fmt.Sprintf("stalwart: write rejected: %s: %s", e.Type, e.Description)
+}
+
 // APIError reports a non-2xx HTTP response from Stalwart.
 //
 // StatusCode is the HTTP status code. Message is a sanitized, truncated excerpt

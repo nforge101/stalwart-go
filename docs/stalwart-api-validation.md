@@ -130,11 +130,61 @@ The SDK's `Domains().List` and `Domains().Get` send these requests. The integrat
 
 A field probe (`TestIntegration_DomainFieldProbe`) requests the other documented `Domain` properties and logs which the server returns. Only the field names are recorded. On the test server, the probe returned all 12 candidate properties for the first domain: `aliases`, `allowRelaying`, `catchAllAddress`, `certificateManagement`, `createdAt`, `description`, `dkimManagement`, `dnsManagement`, `enable`, `reportAddressUri`, `subAddressing`, and `name`. The probe checks key presence only, not values or value types, and it checked one domain. A field is added to the SDK only after its value type is checked across all domains.
 
+## Domain write operations (M3-S3, partly verified)
+
+Observed with `x:Domain/set` on v1.0.1, using a write key with `sysDomainCreate`, `sysDomainUpdate`, and `sysDomainDestroy`, on disposable subdomains of a domain that already existed on the test server.
+
+| Request | Observed result | Status |
+|---------|-----------------|--------|
+| Create with `{"create": {"n1": {"name": ...}}}` | Response fields `accountId` and `created`; the created object has only `id` | Verified |
+| Create with a name that already exists | `notCreated` entry of type `primaryKeyViolation`, blaming `name` | Verified |
+| Create with no `name` | `notCreated` entry of type `validationFailed`, with a `validationErrors` field | Verified |
+| Create with an empty `name` | `notCreated` entry of type `invalidPatch`, blaming `name`, description "Invalid value for property." | Verified |
+| Create with a name under the reserved `.invalid` top-level domain | `invalidPatch`, blaming `name` | Verified |
+| Create with a name that contains spaces | Accepted. The server does not check the characters of a name, so the SDK must validate names before it sends them | Verified |
+| Update `description` (string) and `enable` (boolean) with `{"update": {"<id>": {...}}}` | Response fields `accountId` and `updated`; the entry is `null`. Both values read back, and `enable` reads back as a boolean | Verified |
+| Create with a key that can sign in but has no domain permissions | HTTP 200 with a method-level `forbidden` error, as for reads | Verified |
+| Destroy a freshly created domain with default settings | Not destroyed: `notDestroyed` entry of type `objectIsLinked`, with `objectId` and `linkedObjects` fields. `linkedObjects` is a list of `{"object": "<type>", "id": "<id>"}`; on the test server the one entry was a `DkimSignature`. By default a new domain has `dkimManagement` of `Automatic`, which generates that signature. A domain whose name had spaces was destroyed without this error | Verified |
+| Create with `dkimManagement` set to `{"@type": "Manual"}` | Accepted, read back as `Manual`, and destroyed in one call with no linked objects (`TestIntegration_DomainWriteLifecycle`, 2026-11-26) | Verified |
+| Update or destroy an unknown ID of the same form as a real ID | `notUpdated` or `notDestroyed` entry with only a `type` field, `notFound` | Verified |
+| Update or destroy an ID that is not shaped like a server ID | The ID appeared in neither the success nor the rejection maps, so the request was silently dropped | Verified, and the reason the tests use realistic IDs |
+
+Domain IDs on the test server are a single lowercase letter. Other objects have longer IDs. The SDK must not assume an ID's length or character set.
+
+### Exported write operations (M3-S3, pending verification)
+
+The exported `Domains().Create`, `Update`, and `Delete` are implemented, with unit tests against a local server. They are not yet verified against Stalwart 1.0.1:
+
+- `Delete` removes a linked `DkimSignature` with `x:DkimSignature/set` and a `destroy` call, then destroys the domain. Verified by `TestIntegration_DomainsWriteOperations` (2026-11-26). Without the "Signatures Management: Destroy signatures" permission, the server returns a method-level `forbidden` error ("You are not authorized to create, update or destroy objects of this type"), not an unknown-method error.
+- `Delete` refuses to remove any other linked type and returns a `*LinkedObjectsError` without removing anything. This is by design, so no test on the server is needed to confirm the refusal itself.
+- `Create` validates names before sending them. Stalwart accepts names with spaces, so the SDK's rules are stricter than the server's. The rules are the SDK's own, not Stalwart's.
+
+### Domain field value types
+
+The read-only test `TestIntegration_DomainValueTypes` records the JSON type of each documented property across the six domains that were on the test server. It logs types and counts, never values.
+
+| Property | Observed type |
+|----------|---------------|
+| `name` | string |
+| `enable` | boolean |
+| `description` | string, or `null` when unset |
+| `aliases` | object (empty on every domain, so the shape of an entry is unknown) |
+| `createdAt` | string, an RFC 3339 timestamp |
+| `catchAllAddress` | `null` on every domain, so the type of a set value is unknown |
+| `subAddressing` | object with `@type` `Enabled` |
+| `allowRelaying` | boolean |
+| `reportAddressUri` | string |
+| `certificateManagement` | object with `@type` `Manual` |
+| `dkimManagement` | object with `@type` `Automatic` (or `Manual`, set on create) |
+| `dnsManagement` | object with `@type` `Manual` |
+
+The SDK exposes a property only when its type is confirmed. Properties that are `null` or empty on every domain stay unexposed until a value has been seen.
+
 ## Documented but not verified
 
 Stalwart's documentation (not yet checked against this server) describes:
 
-- `x:Domain/set` for create, update, and destroy, requiring `sysDomainCreate`, `sysDomainUpdate`, and `sysDomainDestroy`.
+- `x:Domain/set` for create, update, and destroy, requiring `sysDomainCreate`, `sysDomainUpdate`, and `sysDomainDestroy`. Create and update are verified (see above). Destroy is blocked while objects such as a DKIM signature are linked to the domain.
 - `x:Domain/query`, requiring `sysDomainQuery`.
 - `/.well-known/jmap` redirecting to `/jmap/session`. The SDK does not follow redirects, so it uses `/jmap/session` directly.
 
