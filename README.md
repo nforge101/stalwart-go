@@ -94,7 +94,7 @@ The example makes no network request and performs no management operation.
 |-----------|--------|
 | Client construction, bearer API-key authentication | Implemented |
 | Domains: list and get by ID (read-only) | Implemented and verified against Stalwart 1.0.1 (see [docs/stalwart-api-validation.md](docs/stalwart-api-validation.md)) |
-| Domains: create, update, delete | Planned (after validation) |
+| Domains: create, update, delete | Implemented and verified against Stalwart 1.0.1. Delete removes a domain's automatic DKIM signature first (see [docs/stalwart-api-validation.md](docs/stalwart-api-validation.md)) |
 | Accounts and mailboxes | Planned (Milestone 4) |
 | Aliases | Planned (Milestone 5) |
 

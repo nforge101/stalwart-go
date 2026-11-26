@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,8 +21,10 @@ import (
 //
 //	go test -tags=integration -count=1 -v -run TestIntegration .
 //
-// They perform read-only requests only. Never point them at a production
-// server. Configuration comes from the environment (see docs/testing.md):
+// The tests in this file perform read-only requests. The tests that create,
+// change, and delete domains are in integration_write_test.go; they skip unless
+// STALWART_TEST_ALLOW_WRITES=1. Never point either set at a production server.
+// Configuration comes from the environment (see docs/testing.md):
 //
 //	STALWART_TEST_URL              base URL of the test server
 //	STALWART_TEST_API_KEY          API key allowed to read domains
@@ -405,6 +408,102 @@ func TestIntegration_DomainFieldProbe(t *testing.T) {
 	}
 	present := jsonKeys(got.List[0])
 	t.Logf("observed: domain properties returned by the server: %s", strings.Join(present, ", "))
+}
+
+// jsonKind names the JSON type of raw without revealing its value. A string
+// that is an RFC 3339 timestamp says so. An object with a string "@type" reports
+// that tag, which names a schema variant. Other objects report only how many
+// keys they have, because keys can be names.
+func jsonKind(raw json.RawMessage) string {
+	s := strings.TrimSpace(string(raw))
+	switch {
+	case s == "null":
+		return "null"
+	case s == "true" || s == "false":
+		return "boolean"
+	case strings.HasPrefix(s, `"`):
+		var str string
+		if json.Unmarshal(raw, &str) == nil {
+			if _, err := time.Parse(time.RFC3339, str); err == nil {
+				return "string (RFC 3339 timestamp)"
+			}
+		}
+		return "string"
+	case strings.HasPrefix(s, "["):
+		var items []json.RawMessage
+		if json.Unmarshal(raw, &items) != nil {
+			return "array"
+		}
+		if len(items) == 0 {
+			return "empty array"
+		}
+		return "array of " + jsonKind(items[0])
+	case strings.HasPrefix(s, "{"):
+		var obj map[string]json.RawMessage
+		if json.Unmarshal(raw, &obj) != nil {
+			return "object"
+		}
+		var tag string
+		if v, ok := obj["@type"]; ok && json.Unmarshal(v, &tag) == nil && tag != "" {
+			return `object with @type "` + tag + `"`
+		}
+		return fmt.Sprintf("object with %d key(s)", len(obj))
+	default:
+		return "number"
+	}
+}
+
+// TestIntegration_DomainValueTypes records the JSON type of each documented
+// Domain property across every domain on the server. It reads only and never
+// fails for an unexpected type, because its purpose is to inform which fields
+// the SDK can expose and how to decode them. It logs types and counts, never
+// values.
+func TestIntegration_DomainValueTypes(t *testing.T) {
+	c := newIntegrationClient(t, envTestAPIKey)
+
+	props := []string{
+		"name", "enable", "description", "aliases", "createdAt",
+		"catchAllAddress", "subAddressing", "allowRelaying", "reportAddressUri",
+		"certificateManagement", "dkimManagement", "dnsManagement",
+	}
+	raw, err := c.callJMAP(testContext(t), domainGetMethod, map[string]any{
+		"ids":        nil,
+		"properties": props,
+	})
+	if err != nil {
+		failRequest(t, "x:Domain/get for value types", err)
+	}
+	var got struct {
+		List []map[string]json.RawMessage `json:"list"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("response is not an object with a list of objects: %v", err)
+	}
+	if len(got.List) == 0 {
+		t.Fatal("the test server has no domains; add one before running the integration tests")
+	}
+
+	t.Logf("observed: value types across %d domain(s)", len(got.List))
+	for _, p := range props {
+		counts := map[string]int{}
+		for _, d := range got.List {
+			v, ok := d[p]
+			if !ok {
+				counts["absent"]++
+				continue
+			}
+			counts[jsonKind(v)]++
+		}
+		kinds := make([]string, 0, len(counts))
+		for k := range counts {
+			kinds = append(kinds, k)
+		}
+		sort.Strings(kinds)
+		for i, k := range kinds {
+			kinds[i] = fmt.Sprintf("%s x%d", k, counts[k])
+		}
+		t.Logf("observed: %s: %s", p, strings.Join(kinds, "; "))
+	}
 }
 
 // mustMarshal encodes v as JSON, failing the test on error.

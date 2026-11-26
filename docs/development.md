@@ -47,6 +47,9 @@ The SDK itself never reads environment variables. Only the example and the integ
 | `STALWART_TEST_URL` | integration tests | Base URL of a dedicated test server |
 | `STALWART_TEST_API_KEY` | integration tests | API key that can sign in and read domains |
 | `STALWART_TEST_NOPERM_API_KEY` | integration tests | API key that can sign in but not read domains |
+| `STALWART_TEST_WRITE_API_KEY` | write integration tests | API key that can create, update, and destroy domains |
+| `STALWART_TEST_ALLOW_WRITES` | write integration tests | Set to `1` to enable the write tests; they skip otherwise |
+| `STALWART_TEST_PARENT_DOMAIN` | write integration tests | A domain that already exists on the test server; disposable domains are created under it |
 
 The integration tests use a separate `STALWART_TEST_` prefix so they never pick up the settings of a real server. See [testing.md](testing.md) before running them.
 
