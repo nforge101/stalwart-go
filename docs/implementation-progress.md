@@ -4,18 +4,17 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Current milestone
 
-**M3 — Domain operations**
+**M4 — Accounts and mailboxes**
 
 ## Active slice
 
-**M3-S3 — Write operations** (`feat/domain-write-operation`, in progress)
+**M4-S1 — Account validation (read-only)** (pending commit on `feat/account-read-operations`)
 
-Scope: validate `x:Domain/set` (create, update, destroy) on disposable domains, then add the exported write operations.
+Scope: probe `x:Account/get` and the candidate mailbox method with a read-only key, and record the account shape before any SDK code. No public API change in this slice.
 
-- **Step 1, validation (run once, findings recorded in [stalwart-api-validation.md](stalwart-api-validation.md)):** write integration tests in `integration_write_test.go`, behind `STALWART_TEST_ALLOW_WRITES=1` and a separate `STALWART_TEST_WRITE_API_KEY`. Verified against v1.0.1: create, duplicate-create, update, destroy, unknown-ID handling, and permission denial. A domain created with default settings gets an automatic DKIM signature that blocks its destroy (`objectIsLinked`). A domain created with `dkimManagement` set to `Manual` is destroyed in one call. The read-only value-type probe has recorded the types of the other `Domain` fields.
-- **Step 2, exported operations (implemented and verified against Stalwart 1.0.1):** `Domains().Create(ctx, name)`, `Domains().Update(ctx, id, DomainPatch)`, and `Domains().Delete(ctx, id)`. Unit tests pass, and `TestIntegration_DomainsWriteOperations` passes against the server, including removal of the automatic DKIM signature.
+- **Probe results:** `x:Account/get` works with a read key that has the account read permission. It returned 5 accounts, all of type `User`. Each account's `name` is the local part, and `emailAddress` is `name@<domain>`. `x:Mailbox/get` is an unknown method on v1.0.1. Recorded in [stalwart-api-validation.md](stalwart-api-validation.md).
 
-M1 (SDK foundation), M2 (API validation), M3-S1 (JMAP helper and method errors), and M3-S2 (read operations) are complete.
+M1 through M3 are complete (see the table below).
 
 ## Completed slices
 
@@ -28,6 +27,7 @@ M1 (SDK foundation), M2 (API validation), M3-S1 (JMAP helper and method errors),
 | M2 — Stalwart API validation | Squash-merged into `main` via PR #5 (`4f51a80`) | Opt-in read-only integration tests against Stalwart v1.0.1, sanitized evidence, first compatibility row |
 | M3-S1 — JMAP helper and method errors | Squash-merged into `main` via PR #6 (`2980ea0`) | Internal `callJMAP` helper, exported `*MethodError` (`forbidden` matches `ErrForbidden`), unit tests for the envelope and both error types |
 | M3-S2 — Read operations | Squash-merged into `main` via PR #7 (`66f1319`) | `Domains().List` and `Domains().Get`, `Domain` with `ID` and `Name` only, `ErrNotFound`, `examples/domains`, field probe result recorded; all 9 integration tests pass against Stalwart 1.0.1 |
+| M3-S3 — Write operations | Squash-merged into `main` via PR #8 (`8dcc39d`) | `Domains().Create`, `Update`, and `Delete`, with DKIM removal on delete; write integration tests and the sweep test pass against Stalwart 1.0.1 |
 
 ## Architectural decisions
 
@@ -77,7 +77,7 @@ Recorded on Windows with Go **1.27.4**:
 | `go test -count=1 ./...` | Pass | Integration tests are excluded without the tag |
 | `go build ./...` | Pass | |
 | `gofmt` | Pass | Checked on LF-normalized copies. The working tree uses CRLF because `core.autocrlf=true` |
-| `go test -tags=integration` | Read-only tests pass against v1.0.1 (M3-S2): nine tests | Run manually against a local test server. Not run in CI. The M3-S3 write tests are written and compile, and skip without the write guard; they have not yet run against a server |
+| `go test -tags=integration` | Read-only tests pass against v1.0.1 (M3-S2): nine tests | Run manually against a local test server. Not run in CI. The M3-S3 write tests ran against v1.0.1 and pass (see [stalwart-api-validation.md](stalwart-api-validation.md)). They skip without the write guard (see [testing.md](testing.md)) |
 | `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Runs in CI on Linux |
 
 Test design notes:

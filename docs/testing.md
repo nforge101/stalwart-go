@@ -90,7 +90,7 @@ Create both keys in the Stalwart WebUI under Account › Credentials › API Key
 
 | Key | Permissions (WebUI label) | Internal name |
 |-----|---------------------------|---------------|
-| `STALWART_TEST_API_KEY` | "Sign in to the server"; "Domains Management: Get domains" | `authenticate`; `sysDomainGet` |
+| `STALWART_TEST_API_KEY` | "Sign in to the server"; "Domains Management: Get domains"; "Accounts Management: Get accounts" | `authenticate`; `sysDomainGet`; `sysAccountGet` (inferred from the WebUI label, not verified) |
 | `STALWART_TEST_NOPERM_API_KEY` | "Sign in to the server" | `authenticate` |
 | `STALWART_TEST_WRITE_API_KEY` (write tests only) | "Sign in to the server"; "Domains Management: Get domains"; "Domains Management: Create domains"; "Domains Management: Update domains"; "Domains Management: Destroy domains" | `authenticate`; `sysDomainGet`; `sysDomainCreate`; `sysDomainUpdate`; `sysDomainDestroy` |
 | `STALWART_TEST_WRITE_API_KEY`, additionally for domain delete | "Signatures Management: Destroy signatures" | Not shown by the WebUI. Probably `sysDkimSignatureDestroy`, but that name is inferred, not verified |
