@@ -25,7 +25,9 @@ Evidence is sanitized. It never contains hostnames, account or domain identifier
 | Signed-in key without `sysDomainGet` is denied with a method-level `forbidden` error | Verified; SDK reports `*MethodError` (M3-S1) |
 | Key without the sign-in permission is rejected with HTTP 403 | Observed during setup; not covered by an automated test |
 | Basic authentication | Not validated |
-| `x:Domain/set`, `x:Domain/query`, accounts, aliases | Not validated (later milestones) |
+| `x:Domain/query`, aliases | Not validated (later milestones) |
+| `x:Account/get` (read-only) | Verified (M4-S1) |
+| `x:Mailbox/get` | Unknown method on v1.0.1 (M4-S1) |
 
 ## Verified details
 
@@ -179,6 +181,30 @@ The read-only test `TestIntegration_DomainValueTypes` records the JSON type of e
 | `dnsManagement` | object with `@type` `Manual` |
 
 The SDK exposes a property only when its type is confirmed. Properties that are `null` or empty on every domain stay unexposed until a value has been seen.
+
+## Account read operations (M4-S1)
+
+Observed with `x:Account/get` on v1.0.1, using a read key with the account read permission, on a server with five accounts. The probe `TestIntegration_AccountProbe` logs field names, value types, and counts only.
+
+| Observation | Result |
+|-------------|--------|
+| Request with `ids: null` and no `properties` | Accepted; returns every account |
+| Response fields | `accountId`, `list`, `notFound`, the same shape as the domain get |
+| Account fields | `@type`, `aliases`, `createdAt`, `credentials`, `description`, `domainId`, `emailAddress`, `encryptionAtRest`, `externalId`, `id`, `locale`, `memberGroupIds`, `memberTenantId`, `name`, `permissions`, `quotas`, `roles`, `timeZone`, `usedDiskQuota` |
+| `@type` | String. All five accounts are `User`. No group accounts were present |
+| `name` | String. No account name contains `@`, so it is the local part |
+| `emailAddress` | String. On every account it equals `name@<domain name>` |
+| `domainId` | String. Each value matches a domain on the server |
+| `credentials` | Object on every account. Its contents are not recorded, and the SDK must not expose them |
+| `description`, `timeZone` | String or `null` |
+| `externalId`, `memberTenantId` | `null` on every account |
+| `usedDiskQuota` | Number |
+| `roles` | Object with `@type` `Admin` (one account) or `User` (four accounts) |
+| `permissions` | Object with `@type` `Inherit` |
+| `encryptionAtRest` | Object with `@type` `Disabled` |
+| `memberGroupIds`, `quotas`, `aliases` | Empty objects on the accounts that were probed |
+
+`x:Mailbox/get` answers with the method error `unknownMethod`. The management API does not expose mailboxes under that name, so mailbox support (M4-S5) stays deferred until another source is found.
 
 ## Documented but not verified
 
