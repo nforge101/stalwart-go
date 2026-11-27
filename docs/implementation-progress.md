@@ -8,7 +8,7 @@ Concise tracker for milestones and slices. Update at the end of each completed s
 
 ## Active slice
 
-**M3-S3 — Write operations** (`feat/domain-write-operation`, in progress)
+**M3-S3 — Write operations** (merged as [PR #8](https://github.com/nforge101/stalwart-go/pull/8), `8dcc39d`; M3 complete)
 
 Scope: validate `x:Domain/set` (create, update, destroy) on disposable domains, then add the exported write operations.
 
@@ -77,7 +77,7 @@ Recorded on Windows with Go **1.27.4**:
 | `go test -count=1 ./...` | Pass | Integration tests are excluded without the tag |
 | `go build ./...` | Pass | |
 | `gofmt` | Pass | Checked on LF-normalized copies. The working tree uses CRLF because `core.autocrlf=true` |
-| `go test -tags=integration` | Read-only tests pass against v1.0.1 (M3-S2): nine tests | Run manually against a local test server. Not run in CI. The M3-S3 write tests are written and compile, and skip without the write guard; they have not yet run against a server |
+| `go test -tags=integration` | Read-only tests pass against v1.0.1 (M3-S2): nine tests | Run manually against a local test server. Not run in CI. The M3-S3 write tests ran against v1.0.1 and pass (see [stalwart-api-validation.md](stalwart-api-validation.md)). They skip without the write guard (see [testing.md](testing.md)) |
 | `go test -race ./...` | Not run locally | Requires CGO and a C toolchain on this Windows host. Runs in CI on Linux |
 
 Test design notes:
